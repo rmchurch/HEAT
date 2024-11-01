@@ -145,6 +145,7 @@ class heatFlux:
                             'fG',
                             'qFilePath',
                             'qFileTag',
+                            'AIShadow',
                             ]
         return
 

@@ -1037,7 +1037,7 @@ class engineObj():
                     fracUI,fracUO,fracLI,fracLO,
                     lqCNmode,lqCFmode,lqPNmode,lqPFmode,SMode,
                     qBG,P,radFrac,fG,
-                    qFilePath,qFileTag,tIdx=0):
+                    qFilePath,qFileTag,AIShadow,tIdx=0):
         """
         get heat flux inputs from gui or input file
         """
@@ -1072,6 +1072,7 @@ class engineObj():
             qFilePath = None
         self.HF.qFilePath = qFilePath
         self.HF.qFileTag = qFileTag
+        self.HF.AIShadow = AIShadow
 
         self.HF.setTypes()
 
@@ -1757,6 +1758,21 @@ class engineObj():
             else:
                 self.inputDicts.append(self.getCurrentInputs())
                 
+            #RMC - adding AI here. 
+            #AI model predicts for (fixed) set of PFCs (PF5). Here we do the prediction, then
+            #split to add to individual PFCs. 
+            if self.HF.AIShadow:
+                import AIShadowClass #import here to avoid torch import if not necessary
+                aiobj = AIShadowClass.AIShadow()
+                AIShadowMask_all = aiobj.inference(self.MHD.ep[tIdx])
+                #TODO This depends on order of PFC, seems brittle, perhaps use coordinates instead?
+                ind_start = 0
+                for PFC in self.PFCs:
+                    Ncenters = len(PFC.centers)
+                    PFC.shadowMasks[tIdx] = AIShadowMask_all[ind_start:ind_start+Ncenters]
+                    ind_start += Ncenters
+
+
             # 3Dplasma general setup
             if self.plasma3D.plasma3Dmask:
                 gFile = self.MHD.shotPath + self.tsFmt.format(t) + '/' + self.MHD.gFiles[tIdx]
@@ -2500,7 +2516,9 @@ class engineObj():
             #check if this is a repeated MHD EQ
             #and that the inputs have not changed
             if (repeatIdx == None) or (self.newInputsFlag == True):
-                if rayTriMode=='open3d':
+                if self.HF.AIShadow:
+                    pass #do nothing, shadowed_mask calculated in runHEAT and already in PFC.shadowed_mask
+                elif rayTriMode=='open3d':
                     #newer ray-triangle calcs using Open3D
                     PFC.findOpticalShadowsOpen3D(self.MHD,self.CAD)
                 else:
@@ -3495,6 +3513,7 @@ class engineObj():
                     'fG' : self.HF.fG,
                     'qFilePath': self.HF.qFilePath,
                     'qFileTag': self.HF.qFileTag,
+                    'AIShadow': self.HF.AIShadow,
                     'OFtMin': self.OF.OFtMin,
                     'OFtMax': self.OF.OFtMax,
                     'deltaT': self.OF.deltaT,
@@ -3579,6 +3598,7 @@ class engineObj():
                     'fG' : self.HF.fG,
                     'qFilePath': self.HF.qFilePath,
                     'qFileTag': self.HF.qFileTag,
+                    'AIShadow': self.HF.AIShadow,
                     'OFtMin': self.OF.OFtMin,
                     'OFtMax': self.OF.OFtMax,
                     'deltaT': self.OF.deltaT,
